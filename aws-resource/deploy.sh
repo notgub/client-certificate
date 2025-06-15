@@ -11,7 +11,6 @@ TEMPLATE_FILE="templates/ecs-services/template.yaml"
 ENVIRONMENT="dev"
 REGION="ap-southeast-7"
 PROFILE=""
-FORCE_UPDATE=false
 
 # Colors for output
 RED='\033[0;31m'
@@ -26,11 +25,10 @@ usage() {
     echo ""
     echo "Options:"
     echo "  -s, --stack-name NAME     Stack name (default: web-service-stack)"
-    echo "  -t, --template FILE       Template file (default: templates/ecs-services/template.yaml)"
+    echo "  -t, --template FILE       Template file (default: templates/ecs-service.yaml)"
     echo "  -e, --environment ENV     Environment (dev|staging|prod) (default: dev)"
     echo "  -r, --region REGION       AWS region (default: ap-southeast-7)"
     echo "  -p, --profile PROFILE     AWS profile to use"
-    echo "  -f, --force               Force update even if no changes detected"
     echo "  -v, --validate            Validate template only"
     echo "  -d, --delete              Delete the stack"
     echo "  -h, --help                Show this help message"
@@ -38,7 +36,6 @@ usage() {
     echo "Examples:"
     echo "  $0                                    # Deploy with defaults"
     echo "  $0 -s my-stack -e prod               # Deploy to production"
-    echo "  $0 -f                                # Force update even if no changes"
     echo "  $0 -v                                # Validate template only"
     echo "  $0 -d -s my-stack                    # Delete stack"
 }
@@ -65,10 +62,6 @@ while [[ $# -gt 0 ]]; do
         -p|--profile)
             PROFILE="$2"
             shift 2
-            ;;
-        -f|--force)
-            FORCE_UPDATE=true
-            shift
             ;;
         -v|--validate)
             VALIDATE_ONLY=true
@@ -141,9 +134,6 @@ deploy_stack() {
     print_status "Template: $TEMPLATE_FILE"
     print_status "Environment: $ENVIRONMENT"
     print_status "Region: $REGION"
-    if [ "$FORCE_UPDATE" = true ]; then
-        print_status "Force update: Enabled"
-    fi
     echo ""
     
     # Validate template first
@@ -160,20 +150,13 @@ deploy_stack() {
         OPERATION="create-stack"
     fi
     
-    # Build the deployment command
-    DEPLOY_CMD="$AWS_CMD cloudformation $OPERATION \
-        --stack-name \"$STACK_NAME\" \
-        --template-body file://\"$TEMPLATE_FILE\" \
-        --capabilities CAPABILITY_NAMED_IAM \
-        --tags Key=Environment,Value=\"$ENVIRONMENT\" Key=Project,Value=web-service"
-    
-    # Add force update parameter if enabled
-    if [ "$FORCE_UPDATE" = true ] && [ "$OPERATION" = "update-stack" ]; then
-        DEPLOY_CMD="$DEPLOY_CMD --parameters ParameterKey=ForceUpdate,ParameterValue=$(date +%s)"
-    fi
-    
     # Deploy the stack
-    if eval $DEPLOY_CMD 2>&1; then
+    if $AWS_CMD cloudformation $OPERATION \
+        --stack-name "$STACK_NAME" \
+        --template-body file://"$TEMPLATE_FILE" \
+        --capabilities CAPABILITY_NAMED_IAM \
+        --tags Key=Environment,Value="$ENVIRONMENT" Key=Project,Value=web-service; then
+        
         print_success "Stack deployment initiated successfully"
         
         # Wait for stack to complete
@@ -194,49 +177,8 @@ deploy_stack() {
             exit 1
         fi
     else
-        # Capture the error output
-        ERROR_OUTPUT=$(eval $DEPLOY_CMD 2>&1)
-        
-        # Check if it's the "No updates" error
-        if echo "$ERROR_OUTPUT" | grep -q "No updates are to be performed"; then
-            if [ "$FORCE_UPDATE" = true ]; then
-                print_status "Attempting force update with timestamp parameter..."
-                # Try again with force update
-                FORCE_CMD="$AWS_CMD cloudformation update-stack \
-                    --stack-name \"$STACK_NAME\" \
-                    --template-body file://\"$TEMPLATE_FILE\" \
-                    --capabilities CAPABILITY_NAMED_IAM \
-                    --tags Key=Environment,Value=\"$ENVIRONMENT\" Key=Project,Value=web-service \
-                    --parameters ParameterKey=ForceUpdate,ParameterValue=$(date +%s)"
-                
-                if eval $FORCE_CMD 2>&1; then
-                    print_success "Force update initiated successfully"
-                    print_status "Waiting for stack update to complete..."
-                    $AWS_CMD cloudformation wait stack-update-complete --stack-name "$STACK_NAME"
-                    if [ $? -eq 0 ]; then
-                        print_success "Force update completed successfully"
-                        show_stack_status
-                        return 0
-                    else
-                        print_error "Force update failed"
-                        exit 1
-                    fi
-                else
-                    print_error "Force update failed"
-                    exit 1
-                fi
-            else
-                print_success "Stack is already up to date. No changes detected."
-                print_status "Use -f or --force to force an update even when no changes are detected."
-                print_status "Current stack status:"
-                show_stack_status
-                return 0
-            fi
-        else
-            print_error "Failed to initiate stack deployment:"
-            echo "$ERROR_OUTPUT"
-            exit 1
-        fi
+        print_error "Failed to initiate stack deployment"
+        exit 1
     fi
 }
 

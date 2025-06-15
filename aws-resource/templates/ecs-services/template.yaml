@@ -39,6 +39,12 @@
           "Default": "web-service-alb",
           "Description": "The name of the load balancer to deploy the service to",
         },
+      "TargetGroupName":
+        {
+          "Type": "String",
+          "Default": "web-service-tg",
+          "Description": "The name of the target group to deploy the service to",
+        },
       "ContainerImage":
         {
           "Type": "String",
@@ -97,7 +103,8 @@
           "Description": "The ARN of the IAM role that the task can use to make API calls",
         },
     },
-  "Resources": {
+  "Resources":
+    {
       "ECSCluster":
         {
           "Type": "AWS::ECS::Cluster",
@@ -171,132 +178,158 @@
                 ],
             },
         },
-      # "ECSService":
-      #   {
-      #     "Type": "AWS::ECS::Service",
-      #     "Properties":
-      #       {
-      #         "Cluster": { "Ref": "ECSClusterName" },
-      #         "CapacityProviderStrategy":
-      #           [{ "CapacityProvider": "FARGATE", "Base": 0, "Weight": 1 }],
-      #         "TaskDefinition": "arn:aws:ecs:ap-southeast-7:235494814246:task-definition/my-family-task:3",
-      #         "ServiceName": "my-family-task-service-ey5v6cyh",
-      #         "SchedulingStrategy": "REPLICA",
-      #         "DesiredCount": 1,
-      #         "AvailabilityZoneRebalancing": "ENABLED",
-      #         "LoadBalancers":
-      #           [
-      #             {
-      #               "ContainerName": "nextjs",
-      #               "ContainerPort": 3000,
-      #               "LoadBalancerName": { "Ref": "AWS::NoValue" },
-      #               "TargetGroupArn": { "Ref": "TargetGroup" },
-      #             },
-      #           ],
-      #         "NetworkConfiguration":
-      #           {
-      #             "AwsvpcConfiguration":
-      #               {
-      #                 "AssignPublicIp": "ENABLED",
-      #                 "SecurityGroups": { "Ref": "SecurityGroupIDs" },
-      #                 "Subnets": { "Ref": "SubnetIDs" },
-      #               },
-      #           },
-      #         "PlatformVersion": "LATEST",
-      #         "DeploymentConfiguration":
-      #           {
-      #             "DeploymentCircuitBreaker":
-      #               { "Enable": true, "Rollback": true },
-      #             "MaximumPercent": 200,
-      #             "MinimumHealthyPercent": 100,
-      #           },
-      #         "DeploymentController": { "Type": "ECS" },
-      #         "ServiceConnectConfiguration": { "Enabled": false },
-      #         "Tags": [],
-      #         "EnableECSManagedTags": true,
-      #       },
-      #     "DependsOn": ["Listener"],
-      #   },
-      # "LoadBalancer":
-      #   {
-      #     "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
-      #     "Properties":
-      #       {
-      #         "Type": "application",
-      #         "Name": "web-service-alb",
-      #         "SecurityGroups": { "Ref": "SecurityGroupIDs" },
-      #         "Subnets": { "Ref": "SubnetIDs" },
-      #       },
-      #   },
-      # "TargetGroup":
-      #   {
-      #     "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
-      #     "Properties":
-      #       {
-      #         "HealthCheckPath": "/",
-      #         "Name": "web-service-tg",
-      #         "Port": 80,
-      #         "Protocol": "HTTP",
-      #         "TargetType": "ip",
-      #         "HealthCheckProtocol": "HTTP",
-      #         "VpcId": { "Ref": "VpcID" },
-      #         "TargetGroupAttributes":
-      #           [
-      #             {
-      #               "Key": "deregistration_delay.timeout_seconds",
-      #               "Value": "300",
-      #             },
-      #           ],
-      #       },
-      #   },
-      # "Listener":
-      #   {
-      #     "Type": "AWS::ElasticLoadBalancingV2::Listener",
-      #     "Properties":
-      #       {
-      #         "DefaultActions":
-      #           [
-      #             {
-      #               "Type": "forward",
-      #               "TargetGroupArn": { "Ref": "TargetGroup" },
-      #             },
-      #           ],
-      #         "LoadBalancerArn": { "Ref": "LoadBalancer" },
-      #         "Port": 80,
-      #         "Protocol": "HTTP",
-      #       },
-      #   },
+      "ECSService":
+        {
+          "Type": "AWS::ECS::Service",
+          "Properties":
+            {
+              "Cluster": { "Ref": "ECSClusterName" },
+              "CapacityProviderStrategy":
+                [{ "CapacityProvider": "FARGATE", "Base": 0, "Weight": 1 }],
+              "TaskDefinition": { "Ref": "TaskDefinition" },
+              "ServiceName": { "Ref": "ECSServiceName" },
+              "SchedulingStrategy": "REPLICA",
+              "DesiredCount": { "Ref": "DesiredCount" },
+              "AvailabilityZoneRebalancing": "ENABLED",
+              "LoadBalancers":
+                [
+                  {
+                    "ContainerName": "nextjs",
+                    "ContainerPort": { "Ref": "ContainerPort" },
+                    "LoadBalancerName": { "Ref": "LoadBalancerName" },
+                    "TargetGroupArn": { "Ref": "TargetGroupArn" },
+                  },
+                ],
+              "NetworkConfiguration":
+                {
+                  "AwsvpcConfiguration":
+                    {
+                      "AssignPublicIp": "ENABLED",
+                      "SecurityGroups": { "Ref": "SecurityGroupIDs" },
+                      "Subnets": { "Ref": "SubnetIDs" },
+                    },
+                },
+              "PlatformVersion": "LATEST",
+              "DeploymentConfiguration":
+                {
+                  "DeploymentCircuitBreaker":
+                    { "Enable": true, "Rollback": true },
+                  "MaximumPercent": 200,
+                  "MinimumHealthyPercent": 100,
+                },
+              "DeploymentController": { "Type": "ECS" },
+              "ServiceConnectConfiguration": { "Enabled": false },
+              "Tags":
+                [
+                  {
+                    "Key": "Environment",
+                    "Value": { "Ref": "AWS::StackName" },
+                  },
+                  { "Key": "Service", "Value": "web-service" },
+                ],
+              "EnableECSManagedTags": true,
+            },
+          "DependsOn": ["Listener"],
+        },
+      "LoadBalancer":
+        {
+          "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+          "Properties":
+            {
+              "Type": "application",
+              "Name": { "Ref": "LoadBalancerName" },
+              "SecurityGroups": { "Ref": "SecurityGroupIDs" },
+              "Subnets": { "Ref": "SubnetIDs" },
+              "Tags":
+                [
+                  {
+                    "Key": "Environment",
+                    "Value": { "Ref": "AWS::StackName" },
+                  },
+                  { "Key": "Service", "Value": "web-service" },
+                ],
+            },
+        },
+      "TargetGroup":
+        {
+          "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+          "Properties":
+            {
+              "HealthCheckPath": "/",
+              "Name": { "Ref": "TargetGroupName" },
+              "Port": 80,
+              "Protocol": "HTTP",
+              "TargetType": "ip",
+              "HealthCheckProtocol": "HTTP",
+              "VpcId": { "Ref": "VpcID" },
+              "TargetGroupAttributes":
+                [
+                  {
+                    "Key": "deregistration_delay.timeout_seconds",
+                    "Value": "300",
+                  },
+                ],
+              "Tags":
+                [
+                  { "Key": "Environment", "Value": { "Ref": "AWS::StackName" } },
+                  { "Key": "Service", "Value": "web-service" },
+                ],
+            },
+        },
+      "Listener":
+        {
+          "Type": "AWS::ElasticLoadBalancingV2::Listener",
+          "Properties":
+            {
+              "DefaultActions":
+                [
+                  {
+                    "Type": "forward",
+                    "TargetGroupArn": { "Ref": "TargetGroup" },
+                  },
+                ],
+              "LoadBalancerArn": { "Ref": "LoadBalancer" },
+              "Port": 80,
+              "Protocol": "HTTP",
+            },
+        },
     },
-  "Outputs": {
+  "Outputs":
+    {
       "ECSCluster":
         {
           "Description": "The created cluster.",
           "Value": { "Ref": "ECSCluster" },
         },
-      # "ClusterName":
-      #   {
-      #     "Description": "The cluster used to create the service.",
-      #     "Value": { "Ref": "ECSClusterName" },
-      #   },
-      # "ECSService":
-      #   {
-      #     "Description": "The created service.",
-      #     "Value": { "Ref": "ECSService" },
-      #   },
-      # "LoadBalancer":
-      #   {
-      #     "Description": "The created load balancer.",
-      #     "Value": { "Ref": "LoadBalancer" },
-      #   },
-      # "Listener":
-      #   {
-      #     "Description": "The created listener.",
-      #     "Value": { "Ref": "Listener" },
-      #   },
-      # "TargetGroup":
-      #   {
-      #     "Description": "The created target group.",
-      #     "Value": { "Ref": "TargetGroup" },
-      #   },
+      "TaskDefinition":
+        {
+          "Description": "The created task definition.",
+          "Value": { "Ref": "TaskDefinition" },
+        },
+      "ClusterName":
+        {
+          "Description": "The cluster used to create the service.",
+          "Value": { "Ref": "ECSClusterName" },
+        },
+      "ECSService":
+        {
+          "Description": "The created service.",
+          "Value": { "Ref": "ECSService" },
+        },
+      "LoadBalancer":
+        {
+          "Description": "The created load balancer.",
+          "Value": { "Ref": "LoadBalancer" },
+        },
+      "Listener":
+        {
+          "Description": "The created listener.",
+          "Value": { "Ref": "Listener" },
+        },
+      "TargetGroup":
+        {
+          "Description": "The created target group.",
+          "Value": { "Ref": "TargetGroup" },
+        },
     },
 }

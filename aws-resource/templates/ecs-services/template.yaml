@@ -102,6 +102,12 @@
           "Default": "arn:aws:iam::235494814246:role/ecsTaskExecutionRole",
           "Description": "The ARN of the IAM role that the task can use to make API calls",
         },
+      "LogGroupName":
+        {
+          "Type": "String",
+          "Default": "/ecs/web-service",
+          "Description": "The name of the CloudWatch log group to deploy the service to",
+        },
     },
   "Resources":
     {
@@ -114,6 +120,23 @@
               "CapacityProviders": ["FARGATE"],
               "ClusterSettings":
                 [{ "Name": "containerInsights", "Value": "disabled" }],
+              "Tags":
+                [
+                  {
+                    "Key": "Environment",
+                    "Value": { "Ref": "AWS::StackName" },
+                  },
+                  { "Key": "Service", "Value": "web-service" },
+                ],
+            },
+        },
+      "CloudWatchLogGroup":
+        {
+          "Type": "AWS::Logs::LogGroup",
+          "Properties":
+            {
+              "LogGroupName": { "Ref": "LogGroupName" },
+              "RetentionInDays": 30,
               "Tags":
                 [
                   {
@@ -159,7 +182,7 @@
                         "LogDriver": "awslogs",
                         "Options":
                           {
-                            "awslogs-group": "/ecs/web-service",
+                            "awslogs-group": { "Ref": "LogGroupName" },
                             "awslogs-region": "ap-southeast-7",
                             "awslogs-stream-prefix": "ecs",
                           },
@@ -261,7 +284,8 @@
                   {
                     "ContainerName": "nextjs",
                     "ContainerPort": { "Ref": "ContainerPort" },
-                    "TargetGroupArn": { "Fn::GetAtt": ["TargetGroup", "TargetGroupArn"] },
+                    "TargetGroupArn":
+                      { "Fn::GetAtt": ["TargetGroup", "TargetGroupArn"] },
                   },
                 ],
               "NetworkConfiguration":
@@ -332,6 +356,11 @@
         {
           "Description": "The created target group.",
           "Value": { "Ref": "TargetGroup" },
+        },
+      "CloudWatchLogGroup":
+        {
+          "Description": "The created CloudWatch log group.",
+          "Value": { "Ref": "CloudWatchLogGroup" },
         },
     },
 }

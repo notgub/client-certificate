@@ -48,7 +48,7 @@
       "ContainerImage":
         {
           "Type": "String",
-          "Default": "235494814246.dkr.ecr.ap-southeast-7.amazonaws.com/web-service:latest",
+          "Default": "235494814246.dkr.ecr.ap-southeast-7.amazonaws.com/nextjs-app:latest",
           "Description": "The container image to deploy",
         },
       "ContainerPort":
@@ -178,59 +178,6 @@
                 ],
             },
         },
-      "ECSService":
-        {
-          "Type": "AWS::ECS::Service",
-          "Properties":
-            {
-              "Cluster": { "Ref": "ECSClusterName" },
-              "CapacityProviderStrategy":
-                [{ "CapacityProvider": "FARGATE", "Base": 0, "Weight": 1 }],
-              "TaskDefinition": { "Ref": "TaskDefinition" },
-              "ServiceName": { "Ref": "ECSServiceName" },
-              "SchedulingStrategy": "REPLICA",
-              "DesiredCount": { "Ref": "DesiredCount" },
-              "AvailabilityZoneRebalancing": "ENABLED",
-              "LoadBalancers":
-                [
-                  {
-                    "ContainerName": "nextjs",
-                    "ContainerPort": { "Ref": "ContainerPort" },
-                    "LoadBalancerName": { "Ref": "LoadBalancerName" },
-                    "TargetGroupArn": { "Ref": "TargetGroupArn" },
-                  },
-                ],
-              "NetworkConfiguration":
-                {
-                  "AwsvpcConfiguration":
-                    {
-                      "AssignPublicIp": "ENABLED",
-                      "SecurityGroups": { "Ref": "SecurityGroupIDs" },
-                      "Subnets": { "Ref": "SubnetIDs" },
-                    },
-                },
-              "PlatformVersion": "LATEST",
-              "DeploymentConfiguration":
-                {
-                  "DeploymentCircuitBreaker":
-                    { "Enable": true, "Rollback": true },
-                  "MaximumPercent": 200,
-                  "MinimumHealthyPercent": 100,
-                },
-              "DeploymentController": { "Type": "ECS" },
-              "ServiceConnectConfiguration": { "Enabled": false },
-              "Tags":
-                [
-                  {
-                    "Key": "Environment",
-                    "Value": { "Ref": "AWS::StackName" },
-                  },
-                  { "Key": "Service", "Value": "web-service" },
-                ],
-              "EnableECSManagedTags": true,
-            },
-          "DependsOn": ["Listener"],
-        },
       "LoadBalancer":
         {
           "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
@@ -271,7 +218,10 @@
                 ],
               "Tags":
                 [
-                  { "Key": "Environment", "Value": { "Ref": "AWS::StackName" } },
+                  {
+                    "Key": "Environment",
+                    "Value": { "Ref": "AWS::StackName" },
+                  },
                   { "Key": "Service", "Value": "web-service" },
                 ],
             },
@@ -292,6 +242,58 @@
               "Port": 80,
               "Protocol": "HTTP",
             },
+        },
+      "ECSService":
+        {
+          "Type": "AWS::ECS::Service",
+          "Properties":
+            {
+              "Cluster": { "Ref": "ECSClusterName" },
+              "CapacityProviderStrategy":
+                [{ "CapacityProvider": "FARGATE", "Base": 0, "Weight": 1 }],
+              "TaskDefinition": { "Ref": "TaskDefinition" },
+              "ServiceName": { "Ref": "ECSServiceName" },
+              "SchedulingStrategy": "REPLICA",
+              "DesiredCount": { "Ref": "DesiredCount" },
+              "AvailabilityZoneRebalancing": "ENABLED",
+              "LoadBalancers":
+                [
+                  {
+                    "ContainerName": "nextjs",
+                    "ContainerPort": { "Ref": "ContainerPort" },
+                    "TargetGroupArn": { "Fn::GetAtt": ["TargetGroup", "TargetGroupArn"] },
+                  },
+                ],
+              "NetworkConfiguration":
+                {
+                  "AwsvpcConfiguration":
+                    {
+                      "AssignPublicIp": "ENABLED",
+                      "SecurityGroups": { "Ref": "SecurityGroupIDs" },
+                      "Subnets": { "Ref": "SubnetIDs" },
+                    },
+                },
+              "PlatformVersion": "LATEST",
+              "DeploymentConfiguration":
+                {
+                  "DeploymentCircuitBreaker":
+                    { "Enable": true, "Rollback": true },
+                  "MaximumPercent": 200,
+                  "MinimumHealthyPercent": 100,
+                },
+              "DeploymentController": { "Type": "ECS" },
+              "ServiceConnectConfiguration": { "Enabled": false },
+              "Tags":
+                [
+                  {
+                    "Key": "Environment",
+                    "Value": { "Ref": "AWS::StackName" },
+                  },
+                  { "Key": "Service", "Value": "web-service" },
+                ],
+              "EnableECSManagedTags": true,
+            },
+          "DependsOn": ["Listener"],
         },
     },
   "Outputs":

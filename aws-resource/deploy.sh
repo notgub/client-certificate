@@ -129,6 +129,35 @@ validate_template() {
     fi
 }
 
+# Function to handle failed stack states
+handle_failed_stack() {
+    local stack_status=$1
+    
+    case $stack_status in
+        "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS")
+            print_error "Stack is currently cleaning up from a failed update. Please wait for cleanup to complete."
+            print_status "You can monitor the status with:"
+            echo "  aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].StackStatus'"
+            print_status "Or continue monitoring with:"
+            echo "  aws cloudformation wait stack-update-rollback-complete --stack-name $STACK_NAME"
+            return 1
+            ;;
+        "UPDATE_ROLLBACK_COMPLETE"|"UPDATE_ROLLBACK_FAILED")
+            print_status "Stack is in a rollback state. You can continue with updates."
+            return 0
+            ;;
+        "CREATE_FAILED"|"DELETE_FAILED")
+            print_error "Stack is in a failed state. You may need to delete and recreate it."
+            print_status "To delete the stack:"
+            echo "  aws cloudformation delete-stack --stack-name $STACK_NAME"
+            return 1
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
 # Function to deploy stack
 deploy_stack() {
     print_status "Deploying CloudFormation stack: $STACK_NAME"
@@ -149,8 +178,20 @@ deploy_stack() {
         exit 1
     fi
     
-    # Check if stack exists
+    # Check if stack exists and get its status
     if stack_exists; then
+        local stack_status=$($AWS_CMD cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null)
+        
+        print_status "Current stack status: $stack_status"
+        
+        # Handle failed stack states
+        if ! handle_failed_stack "$stack_status"; then
+            exit 1
+        fi
+        
         print_status "Stack '$STACK_NAME' already exists. Updating..."
         OPERATION="update-stack"
     else
@@ -235,7 +276,7 @@ delete_stack() {
     fi
 }
 
-# Function to show stack status
+# Function to check stack status
 show_stack_status() {
     if stack_exists; then
         print_status "Stack status:"

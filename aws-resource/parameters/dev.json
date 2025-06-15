@@ -25,7 +25,7 @@
   },
   {
     "ParameterKey": "ContainerImage",
-    "ParameterValue": "235494814246.dkr.ecr.ap-southeast-7.amazonaws.com/web-service:dev"
+    "ParameterValue": "235494814246.dkr.ecr.ap-southeast-7.amazonaws.com/nextjs-app:latest"
   },
   {
     "ParameterKey": "ContainerPort",

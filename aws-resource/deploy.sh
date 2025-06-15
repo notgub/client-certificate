@@ -1,0 +1,311 @@
+#!/bin/bash
+
+# CloudFormation Deployment Script for ECS Service
+# Usage: ./deploy.sh [options]
+
+set -e
+
+# Default values
+STACK_NAME="web-service-stack"
+TEMPLATE_FILE="templates/ecs-services/template.yaml"
+ENVIRONMENT="dev"
+REGION="ap-southeast-7"
+PROFILE=""
+FORCE_UPDATE=false
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Function to print usage
+usage() {
+    echo -e "${BLUE}Usage: $0 [OPTIONS]${NC}"
+    echo ""
+    echo "Options:"
+    echo "  -s, --stack-name NAME     Stack name (default: web-service-stack)"
+    echo "  -t, --template FILE       Template file (default: templates/ecs-services/template.yaml)"
+    echo "  -e, --environment ENV     Environment (dev|staging|prod) (default: dev)"
+    echo "  -r, --region REGION       AWS region (default: ap-southeast-7)"
+    echo "  -p, --profile PROFILE     AWS profile to use"
+    echo "  -f, --force               Force update even if no changes detected"
+    echo "  -v, --validate            Validate template only"
+    echo "  -d, --delete              Delete the stack"
+    echo "  -h, --help                Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0                                    # Deploy with defaults"
+    echo "  $0 -s my-stack -e prod               # Deploy to production"
+    echo "  $0 -f                                # Force update even if no changes"
+    echo "  $0 -v                                # Validate template only"
+    echo "  $0 -d -s my-stack                    # Delete stack"
+}
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -s|--stack-name)
+            STACK_NAME="$2"
+            shift 2
+            ;;
+        -t|--template)
+            TEMPLATE_FILE="$2"
+            shift 2
+            ;;
+        -e|--environment)
+            ENVIRONMENT="$2"
+            shift 2
+            ;;
+        -r|--region)
+            REGION="$2"
+            shift 2
+            ;;
+        -p|--profile)
+            PROFILE="$2"
+            shift 2
+            ;;
+        -f|--force)
+            FORCE_UPDATE=true
+            shift
+            ;;
+        -v|--validate)
+            VALIDATE_ONLY=true
+            shift
+            ;;
+        -d|--delete)
+            DELETE_STACK=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Unknown option: $1${NC}"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+# Build AWS CLI command with profile if specified
+AWS_CMD="aws"
+if [ ! -z "$PROFILE" ]; then
+    AWS_CMD="aws --profile $PROFILE"
+fi
+
+# Add region to AWS command
+AWS_CMD="$AWS_CMD --region $REGION"
+
+# Function to print colored output
+print_status() {
+    echo -e "${YELLOW}[INFO]${NC} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Function to check if stack exists
+stack_exists() {
+    $AWS_CMD cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1
+}
+
+# Function to validate template
+validate_template() {
+    print_status "Validating CloudFormation template: $TEMPLATE_FILE"
+    
+    if [ ! -f "$TEMPLATE_FILE" ]; then
+        print_error "Template file not found: $TEMPLATE_FILE"
+        exit 1
+    fi
+    
+    if $AWS_CMD cloudformation validate-template --template-body file://"$TEMPLATE_FILE" >/dev/null 2>&1; then
+        print_success "Template validation successful"
+        return 0
+    else
+        print_error "Template validation failed"
+        return 1
+    fi
+}
+
+# Function to deploy stack
+deploy_stack() {
+    print_status "Deploying CloudFormation stack: $STACK_NAME"
+    print_status "Template: $TEMPLATE_FILE"
+    print_status "Environment: $ENVIRONMENT"
+    print_status "Region: $REGION"
+    if [ "$FORCE_UPDATE" = true ]; then
+        print_status "Force update: Enabled"
+    fi
+    echo ""
+    
+    # Validate template first
+    if ! validate_template; then
+        exit 1
+    fi
+    
+    # Check if stack exists
+    if stack_exists; then
+        print_status "Stack '$STACK_NAME' already exists. Updating..."
+        OPERATION="update-stack"
+    else
+        print_status "Stack '$STACK_NAME' does not exist. Creating..."
+        OPERATION="create-stack"
+    fi
+    
+    # Build the deployment command
+    DEPLOY_CMD="$AWS_CMD cloudformation $OPERATION \
+        --stack-name \"$STACK_NAME\" \
+        --template-body file://\"$TEMPLATE_FILE\" \
+        --capabilities CAPABILITY_NAMED_IAM \
+        --tags Key=Environment,Value=\"$ENVIRONMENT\" Key=Project,Value=web-service"
+    
+    # Add force update parameter if enabled
+    if [ "$FORCE_UPDATE" = true ] && [ "$OPERATION" = "update-stack" ]; then
+        DEPLOY_CMD="$DEPLOY_CMD --parameters ParameterKey=ForceUpdate,ParameterValue=$(date +%s)"
+    fi
+    
+    # Deploy the stack
+    if eval $DEPLOY_CMD 2>&1; then
+        print_success "Stack deployment initiated successfully"
+        
+        # Wait for stack to complete
+        print_status "Waiting for stack operation to complete..."
+        $AWS_CMD cloudformation wait stack-$([ "$OPERATION" = "create-stack" ] && echo "create" || echo "update")-complete --stack-name "$STACK_NAME"
+        
+        if [ $? -eq 0 ]; then
+            print_success "Stack operation completed successfully"
+            
+            # Display stack outputs
+            print_status "Stack outputs:"
+            $AWS_CMD cloudformation describe-stacks \
+                --stack-name "$STACK_NAME" \
+                --query 'Stacks[0].Outputs' \
+                --output table
+        else
+            print_error "Stack operation failed"
+            exit 1
+        fi
+    else
+        # Capture the error output
+        ERROR_OUTPUT=$(eval $DEPLOY_CMD 2>&1)
+        
+        # Check if it's the "No updates" error
+        if echo "$ERROR_OUTPUT" | grep -q "No updates are to be performed"; then
+            if [ "$FORCE_UPDATE" = true ]; then
+                print_status "Attempting force update with timestamp parameter..."
+                # Try again with force update
+                FORCE_CMD="$AWS_CMD cloudformation update-stack \
+                    --stack-name \"$STACK_NAME\" \
+                    --template-body file://\"$TEMPLATE_FILE\" \
+                    --capabilities CAPABILITY_NAMED_IAM \
+                    --tags Key=Environment,Value=\"$ENVIRONMENT\" Key=Project,Value=web-service \
+                    --parameters ParameterKey=ForceUpdate,ParameterValue=$(date +%s)"
+                
+                if eval $FORCE_CMD 2>&1; then
+                    print_success "Force update initiated successfully"
+                    print_status "Waiting for stack update to complete..."
+                    $AWS_CMD cloudformation wait stack-update-complete --stack-name "$STACK_NAME"
+                    if [ $? -eq 0 ]; then
+                        print_success "Force update completed successfully"
+                        show_stack_status
+                        return 0
+                    else
+                        print_error "Force update failed"
+                        exit 1
+                    fi
+                else
+                    print_error "Force update failed"
+                    exit 1
+                fi
+            else
+                print_success "Stack is already up to date. No changes detected."
+                print_status "Use -f or --force to force an update even when no changes are detected."
+                print_status "Current stack status:"
+                show_stack_status
+                return 0
+            fi
+        else
+            print_error "Failed to initiate stack deployment:"
+            echo "$ERROR_OUTPUT"
+            exit 1
+        fi
+    fi
+}
+
+# Function to delete stack
+delete_stack() {
+    print_status "Deleting CloudFormation stack: $STACK_NAME"
+    
+    if ! stack_exists; then
+        print_error "Stack '$STACK_NAME' does not exist"
+        exit 1
+    fi
+    
+    if $AWS_CMD cloudformation delete-stack --stack-name "$STACK_NAME"; then
+        print_success "Stack deletion initiated"
+        
+        print_status "Waiting for stack deletion to complete..."
+        $AWS_CMD cloudformation wait stack-delete-complete --stack-name "$STACK_NAME"
+        
+        if [ $? -eq 0 ]; then
+            print_success "Stack deleted successfully"
+        else
+            print_error "Stack deletion failed"
+            exit 1
+        fi
+    else
+        print_error "Failed to initiate stack deletion"
+        exit 1
+    fi
+}
+
+# Function to show stack status
+show_stack_status() {
+    if stack_exists; then
+        print_status "Stack status:"
+        $AWS_CMD cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].{Status:StackStatus,Description:Description,CreationTime:CreationTime,LastUpdatedTime:LastUpdatedTime}' \
+            --output table
+    else
+        print_status "Stack '$STACK_NAME' does not exist"
+    fi
+}
+
+# Main execution
+echo -e "${BLUE}=== CloudFormation Deployment Script ===${NC}"
+echo ""
+
+# Check if AWS CLI is installed
+if ! command -v aws &> /dev/null; then
+    print_error "AWS CLI is not installed. Please install it first."
+    exit 1
+fi
+
+# Check if AWS credentials are configured
+if ! $AWS_CMD sts get-caller-identity >/dev/null 2>&1; then
+    print_error "AWS credentials not configured. Please run 'aws configure' first."
+    exit 1
+fi
+
+# Execute based on options
+if [ "$VALIDATE_ONLY" = true ]; then
+    validate_template
+elif [ "$DELETE_STACK" = true ]; then
+    delete_stack
+else
+    deploy_stack
+    echo ""
+    show_stack_status
+fi
+
+echo ""
+print_success "Script completed successfully!" 

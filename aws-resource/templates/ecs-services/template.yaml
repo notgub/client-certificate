@@ -1,0 +1,177 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "The template used to create an ECS Cluster from the ECS Console.",
+  "Parameters":
+    {
+      "ECSClusterName": { "Type": "String", "Default": "web-service-cluster" },
+      "VpcID": { "Type": "String", "Default": "vpc-01670d7749c3331ee" },
+      "ECSServiceName":
+        { "Type": "String", "Default": "my-family-task-service-ey5v6cyh" },
+      "SecurityGroupIDs":
+        { "Type": "CommaDelimitedList", "Default": "sg-044d48d6559b10c8e" },
+      "SubnetIDs":
+        {
+          "Type": "CommaDelimitedList",
+          "Default": "subnet-0d36fa138bdd193ad,subnet-09baba5dd1e565223,subnet-0216004e43c997b1c",
+        },
+      "LoadBalancerName": { "Type": "String", "Default": "web-service-alb" },
+    },
+  "Resources":
+    {
+      "ECSCluster":
+        {
+          "Type": "AWS::ECS::Cluster",
+          "Properties":
+            {
+              "ClusterName": { "Ref": "ECSClusterName" },
+              "CapacityProviders": ["FARGATE"],
+              "ClusterSettings":
+                [{ "Name": "containerInsights", "Value": "disabled" }],
+              "Tags": [],
+            },
+        },
+      # "TaskDefinition":
+      #   {
+      #     "Type": "AWS::ECS::TaskDefinition",
+      #     "Properties": {
+      #       "Family": { "Ref": "ECSClusterName" },
+      #       "Cpu" : "512",
+      #       "Memory" : "1024",
+      #       "NetworkMode" : "awsvpc",
+      #       "ExecutionRoleArn" : "arn:aws:iam::235494814246:role/ecsTaskExecutionRole",
+      #       "ContainerDefinitions" : [
+      #         {
+      #           "Name" : "nextjs",
+      #         }
+      #     },
+      #   },
+      # "ECSService":
+      #   {
+      #     "Type": "AWS::ECS::Service",
+      #     "Properties":
+      #       {
+      #         "Cluster": { "Ref": "ECSClusterName" },
+      #         "CapacityProviderStrategy":
+      #           [{ "CapacityProvider": "FARGATE", "Base": 0, "Weight": 1 }],
+      #         "TaskDefinition": "arn:aws:ecs:ap-southeast-7:235494814246:task-definition/my-family-task:3",
+      #         "ServiceName": "my-family-task-service-ey5v6cyh",
+      #         "SchedulingStrategy": "REPLICA",
+      #         "DesiredCount": 1,
+      #         "AvailabilityZoneRebalancing": "ENABLED",
+      #         "LoadBalancers":
+      #           [
+      #             {
+      #               "ContainerName": "nextjs",
+      #               "ContainerPort": 3000,
+      #               "LoadBalancerName": { "Ref": "AWS::NoValue" },
+      #               "TargetGroupArn": { "Ref": "TargetGroup" },
+      #             },
+      #           ],
+      #         "NetworkConfiguration":
+      #           {
+      #             "AwsvpcConfiguration":
+      #               {
+      #                 "AssignPublicIp": "ENABLED",
+      #                 "SecurityGroups": { "Ref": "SecurityGroupIDs" },
+      #                 "Subnets": { "Ref": "SubnetIDs" },
+      #               },
+      #           },
+      #         "PlatformVersion": "LATEST",
+      #         "DeploymentConfiguration":
+      #           {
+      #             "DeploymentCircuitBreaker":
+      #               { "Enable": true, "Rollback": true },
+      #             "MaximumPercent": 200,
+      #             "MinimumHealthyPercent": 100,
+      #           },
+      #         "DeploymentController": { "Type": "ECS" },
+      #         "ServiceConnectConfiguration": { "Enabled": false },
+      #         "Tags": [],
+      #         "EnableECSManagedTags": true,
+      #       },
+      #     "DependsOn": ["Listener"],
+      #   },
+      # "LoadBalancer":
+      #   {
+      #     "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      #     "Properties":
+      #       {
+      #         "Type": "application",
+      #         "Name": "web-service-alb",
+      #         "SecurityGroups": { "Ref": "SecurityGroupIDs" },
+      #         "Subnets": { "Ref": "SubnetIDs" },
+      #       },
+      #   },
+      # "TargetGroup":
+      #   {
+      #     "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      #     "Properties":
+      #       {
+      #         "HealthCheckPath": "/",
+      #         "Name": "web-service-tg",
+      #         "Port": 80,
+      #         "Protocol": "HTTP",
+      #         "TargetType": "ip",
+      #         "HealthCheckProtocol": "HTTP",
+      #         "VpcId": { "Ref": "VpcID" },
+      #         "TargetGroupAttributes":
+      #           [
+      #             {
+      #               "Key": "deregistration_delay.timeout_seconds",
+      #               "Value": "300",
+      #             },
+      #           ],
+      #       },
+      #   },
+      # "Listener":
+      #   {
+      #     "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      #     "Properties":
+      #       {
+      #         "DefaultActions":
+      #           [
+      #             {
+      #               "Type": "forward",
+      #               "TargetGroupArn": { "Ref": "TargetGroup" },
+      #             },
+      #           ],
+      #         "LoadBalancerArn": { "Ref": "LoadBalancer" },
+      #         "Port": 80,
+      #         "Protocol": "HTTP",
+      #       },
+      #   },
+    },
+  "Outputs":
+    {
+      "ECSCluster":
+        {
+          "Description": "The created cluster.",
+          "Value": { "Ref": "ECSCluster" },
+        },
+      # "ClusterName":
+      #   {
+      #     "Description": "The cluster used to create the service.",
+      #     "Value": { "Ref": "ECSClusterName" },
+      #   },
+      # "ECSService":
+      #   {
+      #     "Description": "The created service.",
+      #     "Value": { "Ref": "ECSService" },
+      #   },
+      # "LoadBalancer":
+      #   {
+      #     "Description": "The created load balancer.",
+      #     "Value": { "Ref": "LoadBalancer" },
+      #   },
+      # "Listener":
+      #   {
+      #     "Description": "The created listener.",
+      #     "Value": { "Ref": "Listener" },
+      #   },
+      # "TargetGroup":
+      #   {
+      #     "Description": "The created target group.",
+      #     "Value": { "Ref": "TargetGroup" },
+      #   },
+    },
+}

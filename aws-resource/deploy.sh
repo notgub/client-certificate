@@ -11,6 +11,7 @@ TEMPLATE_FILE="templates/ecs-services/template.yaml"
 ENVIRONMENT="dev"
 REGION="ap-southeast-7"
 PROFILE=""
+PARAMETERS_FILE="parameters/${ENVIRONMENT}.json"
 
 # Colors for output
 RED='\033[0;31m'
@@ -25,7 +26,7 @@ usage() {
     echo ""
     echo "Options:"
     echo "  -s, --stack-name NAME     Stack name (default: web-service-stack)"
-    echo "  -t, --template FILE       Template file (default: templates/ecs-service.yaml)"
+    echo "  -t, --template FILE       Template file (default: templates/ecs-services/template.yaml)"
     echo "  -e, --environment ENV     Environment (dev|staging|prod) (default: dev)"
     echo "  -r, --region REGION       AWS region (default: ap-southeast-7)"
     echo "  -p, --profile PROFILE     AWS profile to use"
@@ -132,9 +133,16 @@ validate_template() {
 deploy_stack() {
     print_status "Deploying CloudFormation stack: $STACK_NAME"
     print_status "Template: $TEMPLATE_FILE"
+    print_status "Parameters: $PARAMETERS_FILE"
     print_status "Environment: $ENVIRONMENT"
     print_status "Region: $REGION"
     echo ""
+    
+    # Check if parameters file exists
+    if [ ! -f "$PARAMETERS_FILE" ]; then
+        print_error "Parameters file not found: $PARAMETERS_FILE"
+        exit 1
+    fi
     
     # Validate template first
     if ! validate_template; then
@@ -154,8 +162,9 @@ deploy_stack() {
     if $AWS_CMD cloudformation $OPERATION \
         --stack-name "$STACK_NAME" \
         --template-body file://"$TEMPLATE_FILE" \
+        --parameters file://"$PARAMETERS_FILE" \
         --capabilities CAPABILITY_NAMED_IAM \
-        --tags Key=Environment,Value="$ENVIRONMENT" Key=Project,Value=web-service; then
+        --tags Key=Environment,Value="$ENVIRONMENT" Key=Project,Value=web-service 2>&1; then
         
         print_success "Stack deployment initiated successfully"
         
@@ -177,8 +186,25 @@ deploy_stack() {
             exit 1
         fi
     else
-        print_error "Failed to initiate stack deployment"
-        exit 1
+        # Capture the error output
+        ERROR_OUTPUT=$($AWS_CMD cloudformation $OPERATION \
+            --stack-name "$STACK_NAME" \
+            --template-body file://"$TEMPLATE_FILE" \
+            --parameters file://"$PARAMETERS_FILE" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --tags Key=Environment,Value="$ENVIRONMENT" Key=Project,Value=web-service 2>&1)
+        
+        # Check if it's the "No updates" error
+        if echo "$ERROR_OUTPUT" | grep -q "No updates are to be performed"; then
+            print_success "Stack is already up to date. No changes detected."
+            print_status "Current stack status:"
+            show_stack_status
+            return 0
+        else
+            print_error "Failed to initiate stack deployment:"
+            echo "$ERROR_OUTPUT"
+            exit 1
+        fi
     fi
 }
 

@@ -39,6 +39,63 @@
           "Default": "web-service-alb",
           "Description": "The name of the load balancer to deploy the service to",
         },
+      "ContainerImage":
+        {
+          "Type": "String",
+          "Default": "235494814246.dkr.ecr.ap-southeast-7.amazonaws.com/web-service:latest",
+          "Description": "The container image to deploy",
+        },
+      "ContainerPort":
+        {
+          "Type": "Number",
+          "Default": 3000,
+          "Description": "The port the container listens on",
+        },
+      "TaskCPU":
+        {
+          "Type": "String",
+          "Default": "512",
+          "AllowedValues": ["256", "512", "1024", "2048", "4096"],
+          "Description": "The number of CPU units to reserve for the task",
+        },
+      "TaskMemory":
+        {
+          "Type": "String",
+          "Default": "1024",
+          "AllowedValues":
+            [
+              "512",
+              "1024",
+              "2048",
+              "3072",
+              "4096",
+              "5120",
+              "6144",
+              "7168",
+              "8192",
+            ],
+          "Description": "The amount of memory to reserve for the task",
+        },
+      "DesiredCount":
+        {
+          "Type": "Number",
+          "Default": 1,
+          "MinValue": 1,
+          "MaxValue": 10,
+          "Description": "The desired number of tasks to run",
+        },
+      "ExecutionRoleArn":
+        {
+          "Type": "String",
+          "Default": "arn:aws:iam::235494814246:role/ecsTaskExecutionRole",
+          "Description": "The ARN of the IAM role that allows ECS to pull container images and publish logs",
+        },
+      "TaskRoleArn":
+        {
+          "Type": "String",
+          "Default": "arn:aws:iam::235494814246:role/ecsTaskExecutionRole",
+          "Description": "The ARN of the IAM role that the task can use to make API calls",
+        },
     },
   "Resources": {
       "ECSCluster":
@@ -50,24 +107,70 @@
               "CapacityProviders": ["FARGATE"],
               "ClusterSettings":
                 [{ "Name": "containerInsights", "Value": "disabled" }],
-              "Tags": [],
+              "Tags":
+                [
+                  {
+                    "Key": "Environment",
+                    "Value": { "Ref": "AWS::StackName" },
+                  },
+                  { "Key": "Service", "Value": "web-service" },
+                ],
             },
         },
-      # "TaskDefinition":
-      #   {
-      #     "Type": "AWS::ECS::TaskDefinition",
-      #     "Properties": {
-      #       "Family": { "Ref": "ECSClusterName" },
-      #       "Cpu" : "512",
-      #       "Memory" : "1024",
-      #       "NetworkMode" : "awsvpc",
-      #       "ExecutionRoleArn" : "arn:aws:iam::235494814246:role/ecsTaskExecutionRole",
-      #       "ContainerDefinitions" : [
-      #         {
-      #           "Name" : "nextjs",
-      #         }
-      #     },
-      #   },
+      "TaskDefinition":
+        {
+          "Type": "AWS::ECS::TaskDefinition",
+          "Properties":
+            {
+              "Family": { "Ref": "ECSClusterName" },
+              "Cpu": { "Ref": "TaskCPU" },
+              "Memory": { "Ref": "TaskMemory" },
+              "NetworkMode": "awsvpc",
+              "RequiresCompatibilities": ["FARGATE"],
+              "RuntimePlatform":
+                {
+                  "CpuArchitecture": "ARM64",
+                  "OperatingSystemFamily": "LINUX",
+                },
+              "ExecutionRoleArn": { "Ref": "ExecutionRoleArn" },
+              "TaskRoleArn": { "Ref": "TaskRoleArn" },
+              "ContainerDefinitions":
+                [
+                  {
+                    "Name": "nextjs",
+                    "Image": { "Ref": "ContainerImage" },
+                    "PortMappings":
+                      [
+                        {
+                          "ContainerPort": { "Ref": "ContainerPort" },
+                          "Protocol": "tcp",
+                        },
+                      ],
+                    "Essential": true,
+                    "LogConfiguration":
+                      {
+                        "LogDriver": "awslogs",
+                        "Options":
+                          {
+                            "awslogs-group": "/ecs/web-service",
+                            "awslogs-region": "ap-southeast-7",
+                            "awslogs-stream-prefix": "ecs",
+                          },
+                      },
+                    "Environment":
+                      [{ "Name": "NODE_ENV", "Value": "production" }],
+                  },
+                ],
+              "Tags":
+                [
+                  {
+                    "Key": "Environment",
+                    "Value": { "Ref": "AWS::StackName" },
+                  },
+                  { "Key": "Service", "Value": "web-service" },
+                ],
+            },
+        },
       # "ECSService":
       #   {
       #     "Type": "AWS::ECS::Service",

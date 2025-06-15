@@ -108,6 +108,12 @@
           "Default": "/ecs/web-service",
           "Description": "The name of the CloudWatch log group to deploy the service to",
         },
+      "HostedZoneId":
+        {
+          "Type": "String",
+          "Default": "Z10459443ELUEU0JLZOZP",
+          "Description": "The ID of the existing Route 53 hosted zone for notgub.com",
+        },
     },
   "Resources":
     {
@@ -145,6 +151,21 @@
                   },
                   { "Key": "Service", "Value": "web-service" },
                 ],
+            },
+        },
+      "ARecord":
+        {
+          "Type": "AWS::Route53::RecordSet",
+          "Properties":
+            {
+              "HostedZoneId": { "Ref": "HostedZoneId" },
+              "Name": "notgub.com",
+              "Type": "A",
+              "AliasTarget":
+                {
+                  "DNSName": { "Fn::GetAtt": ["LoadBalancer", "DNSName"] },
+                  "HostedZoneId": { "Fn::GetAtt": ["LoadBalancer", "CanonicalHostedZoneID"] },
+                },
             },
         },
       "TaskDefinition":
@@ -366,6 +387,11 @@
         {
           "Description": "The created CloudWatch log group.",
           "Value": { "Ref": "CloudWatchLogGroup" },
+        },
+      "ARecord":
+        {
+          "Description": "The created A record for the domain.",
+          "Value": { "Ref": "ARecord" },
         },
     },
 }

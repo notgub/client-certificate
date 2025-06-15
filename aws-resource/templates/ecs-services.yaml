@@ -347,6 +347,11 @@
           "Description": "The created load balancer.",
           "Value": { "Ref": "LoadBalancer" },
         },
+      "LoadBalancerDNSName":
+        {
+          "Description": "The DNS name of the load balancer.",
+          "Value": { "Fn::GetAtt": ["LoadBalancer", "DNSName"] },
+        },
       "Listener":
         {
           "Description": "The created listener.",

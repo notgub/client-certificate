@@ -7,7 +7,7 @@ set -e
 
 # Default values
 STACK_NAME="web-service-stack"
-TEMPLATE_FILE="templates/ecs-services/template.yaml"
+TEMPLATE_FILE="templates/ecs-services.yaml"
 ENVIRONMENT="dev"
 REGION="ap-southeast-7"
 PROFILE=""

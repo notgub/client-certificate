@@ -114,6 +114,12 @@
           "Default": "Z10459443ELUEU0JLZOZP",
           "Description": "The ID of the existing Route 53 hosted zone for notgub.com",
         },
+      "CertificateArn":
+        {
+          "Type": "String",
+          "Default": "arn:aws:acm:ap-southeast-7:235494814246:certificate/f4566be6-8d48-4a75-9f50-489631a90f84",
+          "Description": "The ARN of the ACM certificate to use for HTTPS",
+        },
     },
   "Resources":
     {
@@ -164,7 +170,8 @@
               "AliasTarget":
                 {
                   "DNSName": { "Fn::GetAtt": ["LoadBalancer", "DNSName"] },
-                  "HostedZoneId": { "Fn::GetAtt": ["LoadBalancer", "CanonicalHostedZoneID"] },
+                  "HostedZoneId":
+                    { "Fn::GetAtt": ["LoadBalancer", "CanonicalHostedZoneID"] },
                 },
             },
         },
@@ -283,8 +290,10 @@
                   },
                 ],
               "LoadBalancerArn": { "Ref": "LoadBalancer" },
-              "Port": 80,
-              "Protocol": "HTTP",
+              "Port": 443,
+              "Protocol": "HTTPS",
+              "Certificates":
+                [{ "CertificateArn": { "Ref": "CertificateArn" } }],
             },
         },
       "ECSService":
